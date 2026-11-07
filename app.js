@@ -4,7 +4,7 @@
    dans un dépôt GitHub privé ; copie locale pour fonctionner sans réseau. */
 
 // ---------- Utilitaires ----------
-const APP_VERSION = '10';
+const APP_VERSION = '11';
 const app = document.getElementById('app');
 const timersEl = document.getElementById('timers');
 const toastEl = document.getElementById('toast');
@@ -48,6 +48,7 @@ const I = {
   check: 'M5 12l5 5 9-10',
   play: 'M8 5.5v13l11-6.5z',
   pause: ['M8 5v14', 'M16 5v14'],
+  timer: ['M12 5a8 8 0 100 16 8 8 0 000-16z', 'M12 9v4l2.5 2.5M9 2h6'],
   bulb: ['M9 18h6M10 21h4', 'M12 3a6 6 0 00-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0012 3z'],
   book: ['M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3z', 'M9 8h6M9 12h6'],
   cart: ['M4 5h2l2 11h10l2-8H7', 'M10 20h.01M17 20h.01'],
@@ -64,8 +65,12 @@ const fmtDur = s => { s = Math.round(s); return `${Math.floor(s / 60)}:${pad2(s 
 const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
 const fmtMo = b => `${Math.round((b || 0) / 1048576)} Mo`;
 
+// action : lien { href, label } ou bouton { onclick, label }.
 function toast(text, action) {
-  toastEl.replaceChildren(...[h('span', {}, text), action ? h('a', { href: action.href, target: '_blank', rel: 'noopener' }, action.label) : null].filter(Boolean));
+  const act = !action ? null : action.onclick
+    ? h('button', { onclick: () => { toastEl.hidden = true; action.onclick(); } }, action.label)
+    : h('a', { href: action.href, target: '_blank', rel: 'noopener' }, action.label);
+  toastEl.replaceChildren(...[h('span', {}, text), act].filter(Boolean));
   toastEl.hidden = false;
   clearTimeout(toast.t);
   toast.t = setTimeout(() => { toastEl.hidden = true; }, action ? 6000 : 2500);
@@ -252,8 +257,12 @@ const timbre = () => TIMBRES[cfg.timbre] || TIMBRES.alarme;
 function startTimer(r, i) {
   const st = r.steps[i];
   unlockAudio();
-  timers.push({ id: `${Date.now()}`, label: st.wait.label, end: Date.now() + st.wait.min * 60000, total: st.wait.min * 60, rid: r.id, step: i });
-  saveTimers(); render();
+  const t = { id: `${Date.now()}`, label: st.wait.label, end: Date.now() + st.wait.min * 60000, total: st.wait.min * 60, rid: r.id, step: i };
+  timers.push(t); saveTimers();
+  // Mémorise qu'il a été lancé à cette étape : pas de lancement automatique ensuite.
+  if (cook && cook.id === r.id) { cook.started = { ...cook.started, [i]: true }; saveCook(); }
+  render();
+  return t;
 }
 const timerLeft = t => Math.ceil((t.end - Date.now()) / 1000);
 function stopTimer(id) { timers = timers.filter(t => t.id !== id); saveTimers(); render(); }
@@ -765,11 +774,11 @@ function viewCook(id, i) {
       h('h1', {}, st.title),
       st.actions ? h('div', { class: 'card acts' }, actionList(r, n, st.actions, `${i}.a`))
         : st.text ? h('p', { class: 'text' }, fillText(st.text, r, n)) : null,
-      st.tip ? h('div', { class: 'tip' }, icon(I.bulb, 18, { style: 'flex: none; margin-top: 1px' }), h('span', {}, h('b', {}, 'Astuce : '), fillText(st.tip, r, n))) : null,
       st.wait && st.wait.min > LONG_WAIT
         ? h('div', { class: 'longwait' }, h('b', {}, `${st.wait.label} : ${fmtMin(st.wait.min)}. `), 'Tu peux fermer l\'appli : la recette reprendra à l\'étape suivante.')
-        : st.wait && !running ? h('button', { class: 'btn', style: 'border-color: var(--wait-ink); color: var(--wait-ink)', onclick: () => startTimer(r, i) },
-          `Lancer le minuteur : ${st.wait.label.toLowerCase()} (${fmtMin(st.wait.min)})`) : null,
+        : st.wait && !running ? h('button', { class: 'btn timerbtn', onclick: () => startTimer(r, i) },
+          icon(I.timer, 22, { 'stroke-width': 2.2 }), `Lancer le minuteur : ${st.wait.label.toLowerCase()} (${fmtMin(st.wait.min)})`) : null,
+      st.tip ? h('div', { class: 'tip' }, icon(I.bulb, 18, { style: 'flex: none; margin-top: 1px' }), h('span', {}, h('b', {}, 'Astuce : '), fillText(st.tip, r, n))) : null,
       st.during && st.during.length ? h('div', { class: 'card acts during' },
         h('span', { class: 'label' }, `Pendant ce temps${st.duringTitle ? ` : ${st.duringTitle}` : st.wait ? ` (${fmtMin(st.wait.min)})` : ''}`),
         actionList(r, n, st.during, `${i}.`)) : null,
@@ -778,8 +787,16 @@ function viewCook(id, i) {
       h('div', { class: 'cnav' },
         h('button', { class: 'btn', disabled: i === 0, onclick: () => go(i - 1) }, 'Précédente'),
         last ? h('a', { class: 'btn primary', href: `#/fin/${r.id}` }, 'Terminer')
-          : h('button', { class: 'btn primary', onclick: () => go(i + 1) }, 'Étape suivante'))),
+          : h('button', { class: 'btn primary', onclick: () => { autoTimer(r, i); go(i + 1); } }, 'Étape suivante'))),
   ];
+}
+// Passage à l'étape suivante sans avoir lancé le minuteur de l'étape : on le lance, avec « Annuler ».
+// Jamais pour une attente longue, ni si ce minuteur a déjà été lancé une fois à cette étape.
+function autoTimer(r, i) {
+  const st = r.steps[i];
+  if (!st.wait || st.wait.min > LONG_WAIT || cook.started?.[i] || timers.some(t => t.rid === r.id && t.step === i)) return;
+  const t = startTimer(r, i);
+  toast(`Minuteur ${st.wait.label.toLowerCase()} (${fmtMin(st.wait.min)}) lancé automatiquement`, { label: 'Annuler', onclick: () => stopTimer(t.id) });
 }
 
 // ---------- Écran : fin de recette ----------
