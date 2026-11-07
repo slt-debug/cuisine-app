@@ -4,7 +4,7 @@
    dans un dépôt GitHub privé ; copie locale pour fonctionner sans réseau. */
 
 // ---------- Utilitaires ----------
-const APP_VERSION = '1';
+const APP_VERSION = '2';
 const app = document.getElementById('app');
 const timersEl = document.getElementById('timers');
 const toastEl = document.getElementById('toast');
@@ -135,6 +135,8 @@ async function syncNow() {
   syncing = true; sync = { ...sync, state: 'busy' }; renderSyncStatus();
   try {
     const rec = await ghGet('recipes.json');
+    // Un jeton « fine-grained » sans accès au dépôt reçoit 404, comme un dépôt qui n'existe pas.
+    if (!rec.data) throw new Error(`dépôt ${cfg.owner}/${cfg.repo} introuvable, ou le jeton n'y a pas accès`);
     let changed = false;
     if (rec.data && JSON.stringify(rec.data.recipes || []) !== JSON.stringify(recipes)) {
       recipes = rec.data.recipes || []; store(K.recipes, recipes); changed = true;
