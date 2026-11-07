@@ -4,7 +4,7 @@
    dans un dépôt GitHub privé ; copie locale pour fonctionner sans réseau. */
 
 // ---------- Utilitaires ----------
-const APP_VERSION = '9';
+const APP_VERSION = '10';
 const app = document.getElementById('app');
 const timersEl = document.getElementById('timers');
 const toastEl = document.getElementById('toast');
@@ -778,15 +778,8 @@ function viewCook(id, i) {
       h('div', { class: 'cnav' },
         h('button', { class: 'btn', disabled: i === 0, onclick: () => go(i - 1) }, 'Précédente'),
         last ? h('a', { class: 'btn primary', href: `#/fin/${r.id}` }, 'Terminer')
-          : h('button', { class: 'btn primary', onclick: () => go(i + 1) }, 'Étape suivante')),
-      h('button', { class: 'btn link', style: 'display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px', onclick: () => askClaude(r, i) },
-        icon(I.copy, 16), 'Demander à Claude (copie la recette et l\'étape)')),
+          : h('button', { class: 'btn primary', onclick: () => go(i + 1) }, 'Étape suivante'))),
   ];
-}
-async function askClaude(r, i) {
-  const text = claudeText(r, servingsOf(r), i, timers.filter(t => timerLeft(t) > 0));
-  try { await navigator.clipboard.writeText(text); toast('Copié. Colle-le dans Claude et ajoute ta question.', { href: 'https://claude.ai/new', label: 'Ouvrir Claude' }); }
-  catch { toast('Copie impossible sur cet appareil.'); }
 }
 
 // ---------- Écran : fin de recette ----------

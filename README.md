@@ -5,9 +5,8 @@ Appli web pour iPhone (à installer sur l'écran d'accueil) : des recettes guid�
 - Portions ajustables : les quantités se recalculent, y compris dans le texte des étapes.
 - Liste de courses : plusieurs recettes, quantités additionnées, rangées par rayon.
 - Notes, ajustements et historique des fois où la recette a été faite.
-- Bouton « Demander à Claude » : copie la recette, les quantités et l'étape en cours, à coller dans une conversation.
 
-Les vidéos restent sur YouTube (lecteur intégré avec un début et une fin) : rien n'est téléchargé.
+Chaque étape lit son extrait de la vidéo : lecteur YouTube intégré, ou fichier vidéo du dépôt de données privé s'il y est.
 
 ## Données
 
