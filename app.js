@@ -4,7 +4,7 @@
    dans un dépôt GitHub privé ; copie locale pour fonctionner sans réseau. */
 
 // ---------- Utilitaires ----------
-const APP_VERSION = '5';
+const APP_VERSION = '6';
 const app = document.getElementById('app');
 const timersEl = document.getElementById('timers');
 const toastEl = document.getElementById('toast');
@@ -734,7 +734,6 @@ function viewCook(id, i) {
         h('div', { class: 'vbtns' },
           h('button', { class: 'btn small', onclick: replayLocal }, icon(I.replay, 15), 'Revoir l\'extrait'),
           h('button', { class: 'btn small', 'aria-pressed': String(lvEl.playbackRate < 1), onclick: toggleSlow }, lvEl.playbackRate < 1 ? 'Vitesse normale' : 'Ralentir (× 0,75)')),
-        h('span', { class: 'small row', style: 'color: var(--ok); gap: 6px' }, icon(I.check, 15, { 'stroke-width': 2.4 }), 'Vidéo sur l\'iPhone : sans pub, sans réseau. S\'arrête à la fin de l\'extrait.'),
       ] : vid ? [
         h('div', { class: 'vbtns' },
           h('button', { class: 'btn small', onclick: replaySegment }, icon(I.replay, 15), 'Revoir l\'extrait'),

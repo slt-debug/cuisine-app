@@ -1,7 +1,7 @@
 'use strict';
 // Cache de l'appli : elle s'ouvre sans réseau (les vidéos YouTube, elles, demandent le réseau).
 // Stratégie "cache d'abord, mise à jour en arrière-plan".
-const CACHE = 'cuisine-v5';
+const CACHE = 'cuisine-v6';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'recipe.js', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
