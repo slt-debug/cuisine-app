@@ -4,7 +4,7 @@
    dans un dépôt GitHub privé ; copie locale pour fonctionner sans réseau. */
 
 // ---------- Utilitaires ----------
-const APP_VERSION = '8';
+const APP_VERSION = '9';
 const app = document.getElementById('app');
 const timersEl = document.getElementById('timers');
 const toastEl = document.getElementById('toast');

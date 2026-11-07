@@ -15,6 +15,8 @@ const UNITS = {
   morceau: { s: 'morceau', p: 'morceaux', step: 0.5 },
   tranche: { s: 'tranche', p: 'tranches', step: 1 },
   pincee: { s: 'pincée', p: 'pincées', step: 1 },
+  poignee: { s: 'poignée', p: 'poignées', step: 0.5 },
+  sachet: { s: 'sachet', p: 'sachets', step: 1 },
   piece: { s: '', step: 0.5 },
 };
 // Rayons de la liste de courses, dans l'ordre d'un parcours de magasin. Un rayon inconnu passe à la fin.
@@ -74,12 +76,15 @@ function stepLines(recipe, st, servings) {
 
 // Déroulé par journée : segments de travail et d'attente, totaux en minutes. Une attente longue
 // (marinade de 24 h) n'entre pas dans le total : elle fait passer au jour suivant (`rest`).
+// Une étape `inWait` se fait pendant l'attente d'une étape précédente (découper pendant que les œufs cuisent) :
+// son travail compte, mais pas sa durée, déjà couverte par l'attente.
 function plan(recipe) {
   const days = [];
   for (const st of recipe.steps) {
     const day = st.day || 'jour';
     let d = days.find(x => x.day === day);
     if (!d) days.push(d = { day, segs: [], work: 0, total: 0, rest: null });
+    if (st.inWait) { d.work += st.work || 0; continue; }
     if (st.work) { d.segs.push({ kind: 'work', min: st.work }); d.work += st.work; d.total += st.work; }
     if (st.wait) {
       if (st.wait.min > LONG_WAIT) d.rest = st.wait;

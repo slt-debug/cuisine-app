@@ -35,7 +35,16 @@ def inside(cs, t):
     return next((c for c in cs if c[0] < t < c[1]), None)
 
 
+NEAR = 0.3  # une coupure à moins de 0,3 s d'une limite de ligne vise cette limite
+
+
 def snap_start(cs, t):
+    # Coupure posée sur le début d'une ligne : on démarre juste avant, sans reprendre la ligne d'avant
+    # (quand l'auteur parle vite, deux lignes se touchent sans silence).
+    k = min(range(len(cs)), key=lambda i: abs(cs[i][0] - t), default=None)
+    if k is not None and abs(cs[k][0] - t) <= NEAR:
+        prev = cs[k - 1][1] if k else 0
+        return max(prev, cs[k][0] - PAD_START)
     c = inside(cs, t)
     if c:
         t = c[0] - PAD_START if c[1] - t >= t - c[0] else c[1] + 0.1
@@ -44,6 +53,10 @@ def snap_start(cs, t):
 
 
 def snap_end(cs, t):
+    k = min(range(len(cs)), key=lambda i: abs(cs[i][1] - t), default=None)
+    if k is not None and abs(cs[k][1] - t) <= NEAR:
+        nxt = cs[k + 1][0] if k + 1 < len(cs) else cs[k][1] + 1
+        return min(nxt, cs[k][1] + PAD_END)
     c = inside(cs, t)
     if c:
         t = c[1] + PAD_END if t - c[0] >= c[1] - t else c[0] - 0.2
@@ -52,7 +65,8 @@ def snap_end(cs, t):
 
 
 def said(cs, a, b):
-    inn = [c[2] for c in cs if c[0] >= a - 0.05 and c[1] <= b + 0.05]
+    # Ligne comptée dans l'extrait si au moins sa moitié y est.
+    inn = [c[2] for c in cs if min(b, c[1]) - max(a, c[0]) >= (c[1] - c[0]) / 2]
     return (inn[0], inn[-1]) if inn else ("(pas de parole)", "")
 
 
