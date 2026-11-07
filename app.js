@@ -4,7 +4,7 @@
    dans un dépôt GitHub privé ; copie locale pour fonctionner sans réseau. */
 
 // ---------- Utilitaires ----------
-const APP_VERSION = '3';
+const APP_VERSION = '4';
 const app = document.getElementById('app');
 const timersEl = document.getElementById('timers');
 const toastEl = document.getElementById('toast');
@@ -43,6 +43,8 @@ const I = {
   copy: ['M10 8h8a2 2 0 012 2v8a2 2 0 01-2 2h-8a2 2 0 01-2-2v-8a2 2 0 012-2z', 'M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3'],
   star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z',
   replay: ['M4 12a8 8 0 108-8 8.5 8.5 0 00-6 2.5L4 8', 'M4 3v5h5'],
+  ext: ['M14 4h6v6', 'M20 4l-9 9', 'M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5'],
+  bulb: ['M9 18h6M10 21h4', 'M12 3a6 6 0 00-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0012 3z'],
   book: ['M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3z', 'M9 8h6M9 12h6'],
   cart: ['M4 5h2l2 11h10l2-8H7', 'M10 20h.01M17 20h.01'],
   gear: ['M12 9a3 3 0 100 6 3 3 0 000-6z', 'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1'],
@@ -479,6 +481,81 @@ function openCook(r, i) {
   location.hash = `#/c/${r.id}/${i}`;
 }
 
+// ---------- Lecteur YouTube unique ----------
+// Un seul lecteur pour toute la recette : il se place au début de l'extrait à chaque étape au lieu
+// d'être rechargé (chaque chargement peut déclencher une pub), et s'arrête à la fin de l'extrait.
+let ytBox = null, ytPlayer = null, ytVid = null, ytReady = false, ytPlayed = false, ytSeg = null, ytApplied = null, ytStopped = false, ytApi = null;
+function loadYtApi() {
+  if (ytApi) return ytApi;
+  ytApi = new Promise((resolve, reject) => {
+    window.onYouTubeIframeAPIReady = resolve;
+    const s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api'; s.onerror = reject;
+    document.head.append(s);
+  });
+  ytApi.catch(() => { ytApi = null; });
+  return ytApi;
+}
+function ensurePlayer(vid, start) {
+  if (ytBox && ytVid === vid) return;
+  destroyPlayer();
+  ytVid = vid;
+  const slot = h('div'), box = ytBox = h('div', { class: 'video ytbox' }, slot);
+  // Le lecteur se crée une fois la vue insérée dans la page (la promesse se résout après render()).
+  loadYtApi().then(() => {
+    if (ytBox !== box) return;
+    ytApplied = `${start}`;
+    ytPlayer = new YT.Player(slot, { host: 'https://www.youtube-nocookie.com', videoId: vid, width: '100%', height: '100%',
+      playerVars: { start, playsinline: 1, rel: 0 },
+      events: {
+        onReady: () => { ytReady = true; applySegment(); },
+        onStateChange: e => { if (e.data === 1) ytPlayed = true; },
+      } });
+  }).catch(() => { if (ytBox === box) box.replaceChildren(h('p', { class: 'vmsg' }, 'Vidéo indisponible (pas de réseau ?)')); });
+}
+function destroyPlayer() {
+  try { ytPlayer?.destroy(); } catch { /* déjà détruit */ }
+  ytBox = ytPlayer = ytVid = ytSeg = ytApplied = null;
+  ytReady = ytPlayed = ytStopped = false;
+}
+function setSegment(st) { ytSeg = { start: st.start, end: st.end || null }; applySegment(); }
+// N'agit que si l'extrait a changé : un render() pour une autre raison (minuteur, case cochée) ne coupe pas la vidéo.
+function applySegment() {
+  if (!ytReady || !ytSeg || ytApplied === `${ytSeg.start}`) return;
+  ytApplied = `${ytSeg.start}`; ytStopped = false;
+  try {
+    if (ytPlayed) { ytPlayer.seekTo(ytSeg.start, true); ytPlayer.pauseVideo(); }
+    else ytPlayer.cueVideoById({ videoId: ytVid, startSeconds: ytSeg.start });
+  } catch { /* lecteur indisponible */ }
+}
+function replaySegment() {
+  if (!ytReady || !ytSeg) return;
+  ytStopped = false;
+  try { ytPlayer.seekTo(ytSeg.start, true); ytPlayer.playVideo(); } catch { /* lecteur indisponible */ }
+}
+setInterval(() => {
+  if (!ytReady || !ytSeg?.end || ytStopped) return;
+  try {
+    // Une fois arrêté à la fin de l'extrait, on laisse continuer si tu relances la lecture.
+    if (ytPlayer.getPlayerState() === 1 && ytPlayer.getCurrentTime() >= ytSeg.end) { ytPlayer.pauseVideo(); ytStopped = true; }
+  } catch { /* lecteur indisponible */ }
+}, 300);
+
+// Actions d'une étape : une ligne à cocher par action, ses ingrédients et quantités dessous.
+// Accepte aussi l'ancien format (simple texte).
+function actionList(r, n, list, prefix) {
+  return list.map((a, k) => {
+    if (typeof a === 'string') a = { do: a };
+    const key = `${prefix}${k}`;
+    return h('div', { class: 'act' },
+      h('label', { class: 'check' },
+        h('input', { type: 'checkbox', checked: !!cook.checks[key], onchange: e => { cook.checks[key] = e.target.checked; saveCook(); } }),
+        h('b', {}, fillText(a.do, r, n)),
+        a.dur ? h('span', { class: 'badge wait' }, fmtMin(a.dur)) : null),
+      a.ings && a.ings.length ? h('div', { class: 'ings' }, stepIngs(r, a.ings, n).map(x => h('div', {}, h('span', {}, x.name), h('b', {}, x.amount)))) : null);
+  });
+}
+
 // ---------- Écran : en cuisine ----------
 function viewCook(id, i) {
   const r = recipeById(id);
@@ -490,10 +567,8 @@ function viewCook(id, i) {
   const st = r.steps[i], n = servingsOf(r), last = i === r.steps.length - 1;
   const prevDay = i > 0 ? r.steps[i - 1].day || 'jour' : null, day = st.day || 'jour';
   const running = timers.find(t => t.rid === r.id && t.step === i);
-  const ytSrc = st.start != null && r.source?.videoId
-    ? `https://www.youtube-nocookie.com/embed/${r.source.videoId}?start=${st.start}${st.end ? `&end=${st.end}` : ''}&playsinline=1&rel=0&modestbranding=1`
-    : null;
-  let frame = null;
+  const vid = st.start != null && r.source?.videoId ? r.source.videoId : null;
+  if (vid) { ensurePlayer(vid, st.start); setSegment(st); }
   const go = k => { location.replace(`#/c/${r.id}/${k}`); };
   return [
     h('div', { class: 'ctop' },
@@ -504,26 +579,28 @@ function viewCook(id, i) {
           onclick: () => { cfg.awake = !cfg.awake; saveCfg(); keepAwake(cfg.awake); toast(cfg.awake ? 'L\'écran reste allumé' : 'L\'écran peut se mettre en veille'); render(); } }, icon(I.sun))),
       h('div', { class: 'prog', style: `grid-template-columns: repeat(${r.steps.length}, minmax(0, 1fr))` },
         r.steps.map((s, k) => h('i', { class: k < i ? 'done' : k === i ? 'cur' : '' })))),
+    h('div', { class: 'cook', style: 'padding-bottom: 0' }, h('div', { id: 'cooktimers', class: 'timers' })),
+    // Le lecteur reste le même d'une étape à l'autre (render() ne le recrée pas) : une pub au plus par recette.
+    vid ? ytBox : null,
     h('div', { class: 'cook' },
-      h('div', { id: 'cooktimers', class: 'timers' }),
-      ytSrc ? h('div', { class: 'stack', style: 'gap: 6px' },
-        h('div', { class: 'video' },
-          frame = h('iframe', { src: ytSrc, title: `Extrait vidéo de l'étape ${i + 1}`, allow: 'autoplay; encrypted-media; picture-in-picture', allowfullscreen: true })),
-        h('button', { class: 'btn small', style: 'align-self: flex-end; display: flex; align-items: center; gap: 6px', onclick: () => { frame.src = `${ytSrc}&autoplay=1`; } },
-          icon(I.replay, 14), `Revoir l'extrait (${fmtDur(st.start)} → ${fmtDur(st.end || st.start)})`)) : null,
+      vid ? [
+        h('div', { class: 'vbtns' },
+          h('button', { class: 'btn small', onclick: replaySegment }, icon(I.replay, 15), 'Revoir l\'extrait'),
+          h('a', { class: 'btn small dark', href: `https://www.youtube.com/watch?v=${vid}&t=${st.start}s`, target: '_blank', rel: 'noopener' }, icon(I.ext, 16), 'YouTube, sans pub')),
+        h('span', { class: 'muted small' }, `Extrait ${fmtDur(st.start)} → ${fmtDur(st.end || st.start)}. Le bouton ouvre l'appli YouTube à ${fmtDur(st.start)}, sans pub grâce à ton Premium. Reviens ici pour entendre les minuteurs.`),
+      ] : null,
       day !== prevDay && hasVeille(r) ? h('span', { class: 'badge wait daytag' }, day === 'veille' ? 'La veille' : 'Le jour J') : null,
-      h('div', { class: 'stack', style: 'gap: 6px' },
-        h('h1', {}, st.title),
-        h('p', { class: 'text' }, fillText(st.text, r, n))),
+      h('h1', {}, st.title),
+      st.actions ? h('div', { class: 'card acts' }, actionList(r, n, st.actions, `${i}.a`))
+        : st.text ? h('p', { class: 'text' }, fillText(st.text, r, n)) : null,
+      st.tip ? h('div', { class: 'tip' }, icon(I.bulb, 18, { style: 'flex: none; margin-top: 1px' }), h('span', {}, h('b', {}, 'Astuce : '), fillText(st.tip, r, n))) : null,
       st.wait && st.wait.min > LONG_WAIT
         ? h('div', { class: 'longwait' }, h('b', {}, `${st.wait.label} : ${fmtMin(st.wait.min)}. `), 'Tu peux fermer l\'appli : la recette reprendra à l\'étape suivante.')
         : st.wait && !running ? h('button', { class: 'btn', style: 'border-color: var(--wait-ink); color: var(--wait-ink)', onclick: () => startTimer(r, i) },
           `Lancer le minuteur : ${st.wait.label.toLowerCase()} (${fmtMin(st.wait.min)})`) : null,
-      st.during && st.during.length ? h('div', { class: 'card p during' },
-        h('span', { class: 'label' }, `Pendant ce temps${st.wait ? ` (${fmtMin(st.wait.min)})` : ''}`),
-        st.during.map((txt, k) => h('label', { class: 'check' },
-          h('input', { type: 'checkbox', checked: !!cook.checks[`${i}.${k}`], onchange: e => { cook.checks[`${i}.${k}`] = e.target.checked; saveCook(); } }),
-          h('span', {}, fillText(txt, r, n))))) : null,
+      st.during && st.during.length ? h('div', { class: 'card acts during' },
+        h('span', { class: 'label' }, `Pendant ce temps${st.duringTitle ? ` : ${st.duringTitle}` : st.wait ? ` (${fmtMin(st.wait.min)})` : ''}`),
+        actionList(r, n, st.during, `${i}.`)) : null,
       st.next ? h('div', { class: 'next' }, icon(I.next, 16, { style: 'flex: none; margin-top: 3px' }), h('span', {}, st.next)) : null),
     h('div', { class: 'cta' },
       h('div', { class: 'cnav' },
@@ -655,7 +732,14 @@ function render() {
     : route === 'courses' ? viewShop() : route === 'reglages' ? viewSettings() : viewLibrary();
   // On garde la position de défilement quand on reste sur le même écran (cocher, +1 personne…).
   const same = render.last === location.hash, y = window.scrollY;
-  app.replaceChildren(...[].concat(view).flat(Infinity).filter(Boolean));
+  const nodes = [].concat(view).flat(Infinity).filter(Boolean);
+  if (ytBox && !nodes.includes(ytBox)) destroyPlayer();
+  if (ytBox && ytBox.parentNode === app) {
+    // Le lecteur vidéo reste en place (déplacer une iframe la recharge) : on remplace seulement ce qui l'entoure.
+    [...app.childNodes].forEach(c => { if (c !== ytBox) c.remove(); });
+    const k = nodes.indexOf(ytBox);
+    ytBox.before(...nodes.slice(0, k)); ytBox.after(...nodes.slice(k + 1));
+  } else app.replaceChildren(...nodes);
   window.scrollTo(0, same ? y : 0);
   render.last = location.hash;
   shown = ''; renderTimers(); renderSyncStatus();

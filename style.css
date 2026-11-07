@@ -146,10 +146,25 @@ textarea { width: 100%; border: 1px solid var(--field); border-radius: 10px; pad
 .cook h1 { font-size: 21px; line-height: 1.25; }
 .cook .text { margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink-2); }
 .during { display: flex; flex-direction: column; gap: 2px; }
-.during .label { color: var(--wait-ink); padding: 0 0 4px; text-transform: none; letter-spacing: 0; font-size: 13px; }
+.during .label { color: var(--wait-ink); padding: 4px 0 2px; text-transform: none; letter-spacing: 0; font-size: 13px; }
 .check { display: flex; align-items: center; gap: 12px; min-height: 40px; font-size: 15px; }
 .check input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
-.check input:checked + span { color: var(--muted); text-decoration: line-through; }
+.check input:checked + span, .check input:checked + b { color: var(--muted); text-decoration: line-through; }
+.check b { flex: 1; font-size: 16px; }
+.ytbox { margin: 12px 16px 0; }
+.ytbox iframe { width: 100%; height: 100%; border: 0; display: block; }
+.vmsg { color: #d8d3ca; font-size: 14px; text-align: center; margin: 0; padding-top: 25%; }
+.vbtns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: -6px; }
+.vbtns .btn { height: 44px; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; color: var(--ink); }
+.vbtns .btn.dark { background: var(--ink); color: var(--page); border-color: var(--ink); }
+.acts { padding: 8px 14px 12px; display: flex; flex-direction: column; gap: 4px; }
+.act + .act { margin-top: 4px; }
+.ings { margin-left: 34px; font-size: 15px; display: flex; flex-direction: column; }
+.ings > div { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px dotted var(--field); }
+.ings > div:last-child { border-bottom: 0; }
+.ings b { font-weight: 600; text-align: right; }
+.tip { background: #fbf1e9; color: #5a2a0e; border-radius: 12px; padding: 10px 14px; font-size: 14px; line-height: 1.45; display: flex; gap: 10px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tip { background: #3a2414; color: #f3c9a8; } }
 .next { font-size: 14px; color: var(--ink-2); display: flex; gap: 8px; }
 .daytag { align-self: flex-start; }
 .longwait { background: var(--wait-bg); color: var(--wait-ink); border-radius: 14px; padding: 14px 16px; font-size: 15px; }

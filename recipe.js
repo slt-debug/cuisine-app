@@ -55,6 +55,23 @@ function fillText(text, recipe, servings) {
   });
 }
 
+// Ingrédients d'une action d'étape : refs = ['id', { id, label }…] → [{ name, amount }].
+function stepIngs(recipe, refs, servings) {
+  return refs.map(ref => {
+    const id = typeof ref === 'string' ? ref : ref.id, ing = recipe.ingredients.find(x => x.id === id);
+    return ing ? { name: (typeof ref === 'object' && ref.label) || ing.name, amount: amount(ing, recipe.servings, servings) } : null;
+  }).filter(Boolean);
+}
+// Texte d'une étape (actions et ingrédients) pour un copier-coller.
+function stepLines(recipe, st, servings) {
+  const act = a => typeof a === 'string' ? { do: a } : a;
+  const line = a => `- ${fillText(a.do, recipe, servings)}${a.dur ? ` (${a.dur} min)` : ''}${a.ings && a.ings.length ? ` : ${stepIngs(recipe, a.ings, servings).map(x => `${x.name} ${x.amount}`).join(', ')}` : ''}`;
+  const out = st.actions ? st.actions.map(act).map(line) : [fillText(st.text, recipe, servings)];
+  if (st.during && st.during.length) out.push('Pendant ce temps :', ...st.during.map(act).map(line));
+  if (st.tip) out.push(`Astuce : ${fillText(st.tip, recipe, servings)}`);
+  return out;
+}
+
 // Déroulé par journée : segments de travail et d'attente, totaux en minutes. Une attente longue
 // (marinade de 24 h) n'entre pas dans le total : elle fait passer au jour suivant (`rest`).
 function plan(recipe) {
@@ -147,11 +164,11 @@ function claudeText(recipe, servings, i, timers = []) {
     ...recipe.ingredients.map(x => `- ${x.name}${x.group ? ` (${x.group.toLowerCase()})` : ''} : ${amount(x, recipe.servings, servings)}`),
     '', 'Étapes :',
     ...recipe.steps.map((s, k) => `${k + 1}. ${s.title}${k === i ? '   <== JE SUIS ICI' : ''}`),
-    '', `Étape en cours (${i + 1}/${recipe.steps.length}) : ${st.title}`, fillText(st.text, recipe, servings),
+    '', `Étape en cours (${i + 1}/${recipe.steps.length}) : ${st.title}`, ...stepLines(recipe, st, servings),
   ];
   if (timers.length) lines.push('', 'Minuteurs en cours : ' + timers.map(t => `${t.label} (${Math.max(0, Math.ceil((t.end - Date.now()) / 60000))} min restantes)`).join(', '));
   lines.push('', 'Ma question : ');
   return lines.join('\n');
 }
 
-if (typeof module !== 'undefined') module.exports = { UNITS, RAYONS, LONG_WAIT, roundQty, fmtNum, fmtAmount, amount, fillText, plan, hasVeille, startHint, shopping, mergeUser, claudeText };
+if (typeof module !== 'undefined') module.exports = { UNITS, RAYONS, LONG_WAIT, roundQty, fmtNum, fmtAmount, amount, fillText, stepIngs, stepLines, plan, hasVeille, startHint, shopping, mergeUser, claudeText };
