@@ -4,7 +4,7 @@
    dans un dépôt GitHub privé ; copie locale pour fonctionner sans réseau. */
 
 // ---------- Utilitaires ----------
-const APP_VERSION = '7';
+const APP_VERSION = '8';
 const app = document.getElementById('app');
 const timersEl = document.getElementById('timers');
 const toastEl = document.getElementById('toast');
@@ -59,7 +59,8 @@ const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août'
 const fmtDate = s => { const [y, m, d] = s.split('-').map(Number); return `${d} ${MOIS[m - 1]} ${y}`; };
 const fmtMin = m => m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${pad2(m % 60)}` : ''}` : `${m} min`;
 const fmtClock = s => s >= 3600 ? `${Math.floor(s / 3600)}:${pad2(Math.floor(s % 3600 / 60))}:${pad2(s % 60)}` : `${Math.floor(s / 60)}:${pad2(s % 60)}`;
-const fmtDur = s => `${Math.floor(s / 60)}:${pad2(s % 60)}`;
+// Les extraits vidéo sont au dixième de seconde (coupures entre deux phrases) : affichage à la seconde.
+const fmtDur = s => { s = Math.round(s); return `${Math.floor(s / 60)}:${pad2(s % 60)}`; };
 const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
 const fmtMo = b => `${Math.round((b || 0) / 1048576)} Mo`;
 
@@ -668,7 +669,7 @@ function ensurePlayer(vid, start) {
     if (ytBox !== box) return;
     ytApplied = `${start}`;
     ytPlayer = new YT.Player(slot, { host: 'https://www.youtube-nocookie.com', videoId: vid, width: '100%', height: '100%',
-      playerVars: { start, playsinline: 1, rel: 0 },
+      playerVars: { start: Math.floor(start), playsinline: 1, rel: 0 },
       events: {
         onReady: () => { ytReady = true; applySegment(); },
         onStateChange: e => { if (e.data === 1) ytPlayed = true; },
@@ -757,7 +758,7 @@ function viewCook(id, i) {
       ] : vid ? [
         h('div', { class: 'vbtns' },
           h('button', { class: 'btn small', onclick: replaySegment }, icon(I.replay, 15), 'Revoir l\'extrait'),
-          h('a', { class: 'btn small dark', href: `https://www.youtube.com/watch?v=${vid}&t=${st.start}s`, target: '_blank', rel: 'noopener' }, icon(I.ext, 16), 'YouTube, sans pub')),
+          h('a', { class: 'btn small dark', href: `https://www.youtube.com/watch?v=${vid}&t=${Math.floor(st.start)}s`, target: '_blank', rel: 'noopener' }, icon(I.ext, 16), 'YouTube, sans pub')),
         h('span', { class: 'muted small' }, `Extrait ${fmtDur(st.start)} → ${fmtDur(st.end || st.start)}. Le bouton ouvre l'appli YouTube à ${fmtDur(st.start)}, sans pub grâce à ton Premium. Reviens ici pour entendre les minuteurs.`),
       ] : null,
       day !== prevDay && hasVeille(r) ? h('span', { class: 'badge wait daytag' }, day === 'veille' ? 'La veille' : 'Le jour J') : null,

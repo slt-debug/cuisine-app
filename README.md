@@ -22,4 +22,6 @@ Voir `recipe.js` pour les règles. Points clés : `ingredients[].id` sert à éc
 
 ## Ajouter une recette
 
-`py -I tools/yt_extract.py <url> <dossier vide>` affiche les chapitres, la description et la transcription horodatée, qui servent à rédiger la fiche.
+1. `py -I tools/yt_extract.py <url> <dossier vide>` affiche les chapitres, la description et la transcription phrase par phrase (début et fin au dixième de seconde, sous-titres manuels de préférence), qui servent à rédiger la fiche. Il copie les sous-titres retenus dans `<dossier>/subs.json3`.
+2. Rédiger les étapes en rattachant chaque phrase à la bonne étape, et poser chaque coupure dans un silence entre deux phrases : la fin d'une étape est le début de la suivante (pas de chevauchement), au dixième de seconde.
+3. `py -I tools/snap_cuts.py <recipes.json> <id> <dossier>/subs.json3` vérifie le découpage : il recale toute coupure tombée dans une phrase et affiche la première et la dernière phrase de chaque extrait. `--write` enregistre le résultat.
