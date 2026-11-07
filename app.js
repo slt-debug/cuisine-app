@@ -4,7 +4,7 @@
    dans un dépôt GitHub privé ; copie locale pour fonctionner sans réseau. */
 
 // ---------- Utilitaires ----------
-const APP_VERSION = '6';
+const APP_VERSION = '7';
 const app = document.getElementById('app');
 const timersEl = document.getElementById('timers');
 const toastEl = document.getElementById('toast');
@@ -71,7 +71,7 @@ function toast(text, action) {
 }
 
 // ---------- Stockage local ----------
-const K = { recipes: 'cuisine.recipes', user: 'cuisine.user', cfg: 'cuisine.settings', cook: 'cuisine.cook', timers: 'cuisine.timers' };
+const K = { recipes: 'cuisine.recipes', user: 'cuisine.user', cfg: 'cuisine.settings', cook: 'cuisine.cook', timers: 'cuisine.timers', have: 'cuisine.have' };
 function load(key, fallback) {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; }
 }
@@ -82,6 +82,9 @@ let cfg = Object.assign({ owner: '', repo: 'cuisine-data', token: '', api: '', t
 // Recette en cours : { id, step, checks: { 'étape.tâche': true } }
 let cook = load(K.cook, null);
 let timers = load(K.timers, []);
+// Ingrédients cochés « j'ai déjà » : { idRecette: { idIngrédient: true } }, sur ce téléphone seulement.
+let have = load(K.have, {});
+const saveHave = () => store(K.have, have);
 const saveCfg = () => store(K.cfg, cfg);
 const saveCook = () => store(K.cook, cook);
 const saveTimers = () => store(K.timers, timers);
@@ -442,11 +445,28 @@ function tabIngredients(r) {
         const list = (user.shop.list || []).filter(x => x.id !== r.id).concat({ id: r.id, servings: n });
         setShop({ list }); toast(inList ? `Liste de courses mise à jour (${n} pers.)` : 'Ajouté à la liste de courses'); render();
       } }, inList ? '↻ Courses' : '+ Courses')),
+    haveBanner(r),
     h('div', { class: 'card', style: 'padding: 4px 16px 8px' }, groups.map(g => [
       g ? h('div', { class: 'label' }, g) : null,
-      h('div', { class: 'lines' }, r.ingredients.filter(x => (x.group || '') === g).map(x => h('div', {}, h('span', {}, x.name), h('b', {}, amount(x, r.servings, n))))),
+      h('div', { class: 'lines have' }, r.ingredients.filter(x => (x.group || '') === g).map(x => h('label', {},
+        h('input', { type: 'checkbox', checked: !!haveOf(r.id)[x.id], onchange: e => setHave(r, x.id, e.target.checked) }),
+        h('span', {}, x.name), h('b', {}, amount(x, r.servings, n))))),
     ])),
   ];
+}
+// « J'ai déjà » : remis à zéro en fin de recette. Pas de render() au cochage : on ne met à jour que le bandeau.
+const haveOf = id => have[id] || {};
+function haveBanner(r) {
+  const n = r.ingredients.filter(x => haveOf(r.id)[x.id]).length;
+  return h('div', { id: 'havebanner', class: 'havebar' },
+    h('span', {}, `J'ai déjà : ${n} sur ${r.ingredients.length}`),
+    h('button', { disabled: !n, onclick: () => { delete have[r.id]; saveHave(); render(); } }, 'Tout décocher'));
+}
+function setHave(r, ingId, on) {
+  const m = { ...haveOf(r.id) };
+  if (on) m[ingId] = true; else delete m[ingId];
+  have[r.id] = m; saveHave();
+  document.getElementById('havebanner')?.replaceWith(haveBanner(r));
 }
 function tabEtapes(r) {
   const days = [...new Set(r.steps.map(s => s.day || 'jour'))];
@@ -787,6 +807,7 @@ function viewEnd(id) {
         setNote(r.id, { rating: endRating || n.rating, text, history: [...n.history, { t, date: today(), rating: endRating }] });
         timers = timers.filter(x => x.rid !== r.id); saveTimers();
         cook = null; saveCook(); endRating = 0;
+        delete have[r.id]; saveHave();
         keepAwake(false);
         location.hash = `#/r/${r.id}/notes`;
       } }, 'Enregistrer'),

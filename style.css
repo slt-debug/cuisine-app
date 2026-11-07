@@ -18,6 +18,9 @@
   --video: #2b2723;
   --done: #b03e0a;
   --ok: #1f7a1f;
+  --ok-bg: #e8f3e8;
+  --ok-ink: #1f5f1f;
+  --ok-line: #b9d8b9;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -40,6 +43,9 @@
     --video: #000000;
     --done: #e0702f;
     --ok: #4cc24c;
+    --ok-bg: #16301a;
+    --ok-ink: #a8e0a8;
+    --ok-line: #2f5a33;
   }
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -80,6 +86,13 @@ input, textarea, select { font: inherit; color: var(--ink); }
 .lines > div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line-2); }
 .lines > div:last-child { border-bottom: 0; }
 .lines b { font-weight: 600; text-align: right; }
+.lines.have > label { display: flex; align-items: center; gap: 12px; min-height: 42px; border-bottom: 1px solid var(--line-2); }
+.lines.have > label:last-child { border-bottom: 0; }
+.lines.have span { flex: 1; }
+.lines.have input { width: 22px; height: 22px; accent-color: var(--ok); flex: none; margin: 0; }
+.havebar { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--ok-bg); color: var(--ok-ink); border-radius: 12px; padding: 10px 14px; font-size: 14px; font-weight: 600; }
+.havebar button { height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--ok-line); background: transparent; color: inherit; font-size: 13px; font-weight: 600; }
+.havebar button:disabled { opacity: 0.45; }
 
 /* En-tête de page */
 .head { padding: 24px 20px 12px; display: flex; flex-direction: column; gap: 14px; }
