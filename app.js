@@ -4,7 +4,7 @@
    dans un dépôt GitHub privé ; copie locale pour fonctionner sans réseau. */
 
 // ---------- Utilitaires ----------
-const APP_VERSION = '4';
+const APP_VERSION = '5';
 const app = document.getElementById('app');
 const timersEl = document.getElementById('timers');
 const toastEl = document.getElementById('toast');
@@ -44,6 +44,10 @@ const I = {
   star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z',
   replay: ['M4 12a8 8 0 108-8 8.5 8.5 0 00-6 2.5L4 8', 'M4 3v5h5'],
   ext: ['M14 4h6v6', 'M20 4l-9 9', 'M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5'],
+  download: ['M12 4v11', 'M7 10l5 5 5-5', 'M5 20h14'],
+  check: 'M5 12l5 5 9-10',
+  play: 'M8 5.5v13l11-6.5z',
+  pause: ['M8 5v14', 'M16 5v14'],
   bulb: ['M9 18h6M10 21h4', 'M12 3a6 6 0 00-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0012 3z'],
   book: ['M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3z', 'M9 8h6M9 12h6'],
   cart: ['M4 5h2l2 11h10l2-8H7', 'M10 20h.01M17 20h.01'],
@@ -57,9 +61,10 @@ const fmtMin = m => m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${pad2(m % 60
 const fmtClock = s => s >= 3600 ? `${Math.floor(s / 3600)}:${pad2(Math.floor(s % 3600 / 60))}:${pad2(s % 60)}` : `${Math.floor(s / 60)}:${pad2(s % 60)}`;
 const fmtDur = s => `${Math.floor(s / 60)}:${pad2(s % 60)}`;
 const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
+const fmtMo = b => `${Math.round((b || 0) / 1048576)} Mo`;
 
 function toast(text, action) {
-  toastEl.replaceChildren(h('span', {}, text), action ? h('a', { href: action.href, target: '_blank', rel: 'noopener' }, action.label) : null);
+  toastEl.replaceChildren(...[h('span', {}, text), action ? h('a', { href: action.href, target: '_blank', rel: 'noopener' }, action.label) : null].filter(Boolean));
   toastEl.hidden = false;
   clearTimeout(toast.t);
   toast.t = setTimeout(() => { toastEl.hidden = true; }, action ? 6000 : 2500);
@@ -381,6 +386,7 @@ function tabApercu(r) {
       .map(s => h('div', { class: s.kind, style: `flex: ${s.min}` }))),
     h('span', { class: 'small', style: 'color: var(--ink-2)' }, daySummary(r, d)));
   return [
+    videoCard(r),
     stepper(r),
     h('div', {}, h('h2', {}, 'Déroulé'),
       h('div', { class: 'card p stack', style: 'gap: 14px' }, days.map(dayBlock),
@@ -392,6 +398,29 @@ function tabApercu(r) {
           .map(([, v, l]) => h('div', { class: 'card' }, h('b', {}, v), h('span', {}, l))))) : null,
     r.serve ? h('p', { class: 'small', style: 'margin: 0; color: var(--ink-2)' }, h('b', {}, 'Servir : '), r.serve) : null,
   ];
+}
+// Vidéo de la recette sur l'iPhone : à mettre, en cours de téléchargement, ou présente.
+function videoCard(r) {
+  if (!r.video || !r.source?.videoId) return null;
+  const vid = r.source.videoId, size = fmtMo(r.video.size);
+  if (dl && dl.vid === vid) {
+    return h('div', { class: 'card p stack', style: 'gap: 10px' },
+      h('div', { class: 'row between' }, h('b', {}, 'Téléchargement…'), h('span', { id: 'dltxt', class: 'muted small' }, `${fmtMo(dl.got)} / ${size}`)),
+      h('div', { class: 'dlbar' }, h('div', { id: 'dlfill', style: `width: ${dl.total ? Math.round(dl.got / dl.total * 100) : 0}%` })),
+      h('span', { class: 'muted small' }, 'Garde l\'appli ouverte jusqu\'à la fin.'));
+  }
+  if (localVideos[vid] != null) {
+    return h('div', { class: 'card p row', style: 'gap: 12px' },
+      icon(I.check, 26, { stroke: 'var(--ok)', 'stroke-width': 2.2 }),
+      h('div', { class: 'stack', style: 'gap: 2px; flex: 1' }, h('b', {}, 'Vidéo sur l\'iPhone'), h('span', { class: 'muted small' }, `Sans pub, marche sans réseau · ${fmtMo(localVideos[vid])}`)),
+      h('button', { class: 'btn small', onclick: () => removeVideo(vid) }, 'Retirer'));
+  }
+  return h('div', { class: 'card p stack', style: 'gap: 10px' },
+    h('div', { class: 'row', style: 'gap: 12px' },
+      h('span', { style: 'color: var(--accent)' }, icon(I.download, 26)),
+      h('div', { class: 'stack', style: 'gap: 2px' }, h('b', {}, 'Vidéo pour la cuisine'), h('span', { class: 'muted small' }, `Sans pub et sans réseau · ${size}`))),
+    h('button', { class: 'btn primary', style: 'height: 44px; font-size: 15px', disabled: !!dl || !cfgOk(), onclick: () => downloadVideo(r) },
+      dl ? 'Un autre téléchargement est en cours' : 'Mettre sur l\'iPhone'));
 }
 // Résumé d'une journée : attentes au four listées, glaçage pendant une cuisson…
 function daySummary(r, d) {
@@ -481,6 +510,119 @@ function openCook(r, i) {
   location.hash = `#/c/${r.id}/${i}`;
 }
 
+// ---------- Vidéos sur l'iPhone ----------
+// Fichier MP4 du dépôt privé (videos/<id>.mp4), gardé dans IndexedDB : lecture sans pub ni réseau.
+// Base « cuisine-videos », magasin « videos » : { vid, size, blob }.
+let localVideos = {}, dl = null, vdbP = null;
+function vdb() {
+  return vdbP = vdbP || new Promise((resolve, reject) => {
+    const req = indexedDB.open('cuisine-videos', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('videos', { keyPath: 'vid' });
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => { vdbP = null; reject(req.error); };
+  });
+}
+async function vdbDo(mode, fn) {
+  const db = await vdb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('videos', mode), req = fn(tx.objectStore('videos'));
+    tx.oncomplete = () => resolve(req?.result);
+    tx.onerror = tx.onabort = () => reject(tx.error);
+  });
+}
+async function loadLocalVideos() {
+  try {
+    // Lecture des tailles seulement (curseur), sans charger les vidéos en mémoire.
+    const db = await vdb(), out = {};
+    await new Promise((resolve, reject) => {
+      const req = db.transaction('videos').objectStore('videos').openCursor();
+      req.onsuccess = () => { const c = req.result; if (!c) return resolve(); out[c.value.vid] = c.value.size; c.continue(); };
+      req.onerror = () => reject(req.error);
+    });
+    localVideos = out;
+  } catch { localVideos = {}; }
+}
+async function downloadVideo(r) {
+  if (dl || !cfgOk()) return;
+  const vid = r.source.videoId;
+  dl = { vid, got: 0, total: r.video.size || 0 }; render();
+  try {
+    // Sans cela, iOS peut effacer les données de l'appli quand la place manque.
+    try { await navigator.storage?.persist?.(); } catch { /* non pris en charge */ }
+    const res = await fetch(fileUrl(r.video.file), { headers: { ...ghHeaders(), Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' });
+    if (!res.ok) throw new Error(res.status === 404 ? 'vidéo absente du dépôt' : `GitHub ${res.status}`);
+    const reader = res.body.getReader(), parts = [];
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(value); dl.got += value.length;
+      const fill = document.getElementById('dlfill'), txt = document.getElementById('dltxt');
+      if (fill && dl.total) fill.style.width = `${Math.min(100, Math.round(dl.got / dl.total * 100))}%`;
+      if (txt) txt.textContent = `${fmtMo(dl.got)} / ${fmtMo(dl.total)}`;
+    }
+    const blob = new Blob(parts, { type: 'video/mp4' });
+    await vdbDo('readwrite', s => s.put({ vid, size: blob.size, blob }));
+    localVideos[vid] = blob.size;
+    toast('Vidéo enregistrée sur l\'iPhone');
+  } catch (e) { toast(`Téléchargement impossible : ${e.message}`); }
+  dl = null; render();
+}
+async function removeVideo(vid) {
+  try { await vdbDo('readwrite', s => s.delete(vid)); } catch { /* déjà absent */ }
+  delete localVideos[vid];
+  if (lvVid === vid) destroyPlayer();
+  render();
+}
+
+// Lecteur de la vidéo locale : comme le lecteur YouTube, un seul pour toute la recette, limité à l'extrait de l'étape.
+let lvBox = null, lvEl = null, lvVid = null, lvUrl = null, lvSeg = null, lvApplied = null, lvStopped = false;
+function ensureLocalPlayer(vid) {
+  if (lvBox && lvVid === vid) return;
+  destroyPlayer();
+  lvVid = vid;
+  const playBtn = h('button', { class: 'lvplay', 'aria-label': 'Lecture', onclick: e => { e.stopPropagation(); lvEl.paused ? lvPlay() : lvEl.pause(); } }, icon(I.play, 30, { fill: 'currentColor' }));
+  const t0 = h('span'), t1 = h('span'), fill = h('div');
+  lvEl = h('video', { playsinline: true, 'webkit-playsinline': true, preload: 'auto', onclick: () => { lvEl.paused ? lvPlay() : lvEl.pause(); } });
+  const showState = () => {
+    playBtn.replaceChildren(icon(lvEl.paused ? I.play : I.pause, 30, lvEl.paused ? { fill: 'currentColor' } : { 'stroke-width': 3 }));
+    playBtn.setAttribute('aria-label', lvEl.paused ? 'Lecture' : 'Pause');
+    playBtn.classList.toggle('playing', !lvEl.paused);
+  };
+  lvEl.addEventListener('play', showState);
+  lvEl.addEventListener('pause', showState);
+  lvEl.addEventListener('loadedmetadata', applyLocalSegment);
+  lvEl.addEventListener('timeupdate', () => {
+    if (!lvSeg) return;
+    const t = lvEl.currentTime, end = lvSeg.end || lvEl.duration || t;
+    fill.style.width = `${Math.max(0, Math.min(100, (t - lvSeg.start) / Math.max(1, end - lvSeg.start) * 100))}%`;
+    // Une fois arrêté à la fin de l'extrait, on laisse continuer si tu relances la lecture.
+    if (lvSeg.end && !lvStopped && t >= lvSeg.end) { lvEl.pause(); lvStopped = true; }
+  });
+  lvBox = h('div', { class: 'video lvbox' }, lvEl, playBtn, h('div', { class: 'lvbar' }, t0, h('div', { class: 'track' }, fill), t1));
+  lvBox.labels = { t0, t1, fill };
+  const box = lvBox;
+  vdbDo('readonly', s => s.get(vid)).then(rec => {
+    if (lvBox !== box || !rec) return;
+    lvUrl = URL.createObjectURL(rec.blob); lvEl.src = lvUrl;
+  }).catch(() => {});
+}
+function lvPlay() { lvEl.play().catch(() => {}); }
+function setLocalSegment(st) {
+  lvSeg = { start: st.start, end: st.end || null };
+  lvBox.labels.t0.textContent = fmtDur(st.start);
+  lvBox.labels.t1.textContent = fmtDur(st.end || st.start);
+  applyLocalSegment();
+}
+// N'agit que si l'extrait a changé : un render() pour une autre raison ne coupe pas la vidéo.
+function applyLocalSegment() {
+  if (!lvEl || !lvSeg || lvEl.readyState < 1 || lvApplied === lvSeg.start) return;
+  lvApplied = lvSeg.start; lvStopped = false;
+  lvEl.pause(); lvEl.currentTime = lvSeg.start;
+  lvBox.labels.fill.style.width = '0%';
+}
+function replayLocal() { if (!lvEl || !lvSeg) return; lvStopped = false; lvEl.currentTime = lvSeg.start; lvPlay(); }
+function toggleSlow() { if (!lvEl) return; lvEl.playbackRate = lvEl.playbackRate < 1 ? 1 : 0.75; render(); }
+
 // ---------- Lecteur YouTube unique ----------
 // Un seul lecteur pour toute la recette : il se place au début de l'extrait à chaque étape au lieu
 // d'être rechargé (chaque chargement peut déclencher une pub), et s'arrête à la fin de l'extrait.
@@ -517,6 +659,9 @@ function destroyPlayer() {
   try { ytPlayer?.destroy(); } catch { /* déjà détruit */ }
   ytBox = ytPlayer = ytVid = ytSeg = ytApplied = null;
   ytReady = ytPlayed = ytStopped = false;
+  try { lvEl?.pause(); } catch { /* ignoré */ }
+  if (lvUrl) URL.revokeObjectURL(lvUrl);
+  lvBox = lvEl = lvVid = lvUrl = lvSeg = lvApplied = null; lvStopped = false;
 }
 function setSegment(st) { ytSeg = { start: st.start, end: st.end || null }; applySegment(); }
 // N'agit que si l'extrait a changé : un render() pour une autre raison (minuteur, case cochée) ne coupe pas la vidéo.
@@ -568,7 +713,9 @@ function viewCook(id, i) {
   const prevDay = i > 0 ? r.steps[i - 1].day || 'jour' : null, day = st.day || 'jour';
   const running = timers.find(t => t.rid === r.id && t.step === i);
   const vid = st.start != null && r.source?.videoId ? r.source.videoId : null;
-  if (vid) { ensurePlayer(vid, st.start); setSegment(st); }
+  const local = vid && localVideos[vid] != null;
+  if (local) { ensureLocalPlayer(vid); setLocalSegment(st); }
+  else if (vid) { ensurePlayer(vid, st.start); setSegment(st); }
   const go = k => { location.replace(`#/c/${r.id}/${k}`); };
   return [
     h('div', { class: 'ctop' },
@@ -581,9 +728,14 @@ function viewCook(id, i) {
         r.steps.map((s, k) => h('i', { class: k < i ? 'done' : k === i ? 'cur' : '' })))),
     h('div', { class: 'cook', style: 'padding-bottom: 0' }, h('div', { id: 'cooktimers', class: 'timers' })),
     // Le lecteur reste le même d'une étape à l'autre (render() ne le recrée pas) : une pub au plus par recette.
-    vid ? ytBox : null,
+    local ? lvBox : vid ? ytBox : null,
     h('div', { class: 'cook' },
-      vid ? [
+      local ? [
+        h('div', { class: 'vbtns' },
+          h('button', { class: 'btn small', onclick: replayLocal }, icon(I.replay, 15), 'Revoir l\'extrait'),
+          h('button', { class: 'btn small', 'aria-pressed': String(lvEl.playbackRate < 1), onclick: toggleSlow }, lvEl.playbackRate < 1 ? 'Vitesse normale' : 'Ralentir (× 0,75)')),
+        h('span', { class: 'small row', style: 'color: var(--ok); gap: 6px' }, icon(I.check, 15, { 'stroke-width': 2.4 }), 'Vidéo sur l\'iPhone : sans pub, sans réseau. S\'arrête à la fin de l\'extrait.'),
+      ] : vid ? [
         h('div', { class: 'vbtns' },
           h('button', { class: 'btn small', onclick: replaySegment }, icon(I.replay, 15), 'Revoir l\'extrait'),
           h('a', { class: 'btn small dark', href: `https://www.youtube.com/watch?v=${vid}&t=${st.start}s`, target: '_blank', rel: 'noopener' }, icon(I.ext, 16), 'YouTube, sans pub')),
@@ -702,6 +854,17 @@ function viewSettings() {
           h('input', { type: 'range', min: 0.1, max: 1, step: 0.05, value: cfg.volume, onchange: e => { cfg.volume = Number(e.target.value); saveCfg(); render(); } })),
         h('button', { class: 'btn', onclick: () => { unlockAudio(); const t = { label: 'Essai' }; timbre().soon(t); setTimeout(() => timbre().end(t), cfg.timbre === 'voix' ? 1800 : 700); } }, 'Essayer le son'),
         h('span', { class: 'muted small' }, 'L\'iPhone ne sonne que si l\'appli est ouverte : pendant une recette, l\'écran reste allumé (icône soleil).')),
+      h('div', { class: 'card p stack', style: 'gap: 10px' },
+        h('b', {}, 'Vidéos sur l\'iPhone'),
+        (() => {
+          const ids = Object.keys(localVideos), total = ids.reduce((a, k) => a + localVideos[k], 0);
+          return h('div', { class: 'row between' },
+            h('span', { class: 'muted small' }, ids.length ? `${plural(ids.length, 'vidéo')}, ${fmtMo(total)}` : 'Aucune. Ajoute-les depuis l\'onglet Aperçu d\'une recette.'),
+            ids.length ? h('button', { class: 'btn small', onclick: async () => {
+              if (!confirm('Retirer toutes les vidéos de l\'iPhone ?')) return;
+              for (const id of ids) await removeVideo(id);
+            } }, 'Tout retirer') : null);
+        })()),
       h('div', { class: 'card p stack', style: 'gap: 12px' },
         h('b', {}, 'Heure du repas'),
         h('label', { class: 'field' }, 'Pour calculer l\'heure de départ d\'une recette',
@@ -733,12 +896,13 @@ function render() {
   // On garde la position de défilement quand on reste sur le même écran (cocher, +1 personne…).
   const same = render.last === location.hash, y = window.scrollY;
   const nodes = [].concat(view).flat(Infinity).filter(Boolean);
-  if (ytBox && !nodes.includes(ytBox)) destroyPlayer();
-  if (ytBox && ytBox.parentNode === app) {
+  if ((ytBox || lvBox) && !nodes.includes(ytBox || lvBox)) destroyPlayer();
+  const keep = ytBox || lvBox;
+  if (keep && keep.parentNode === app) {
     // Le lecteur vidéo reste en place (déplacer une iframe la recharge) : on remplace seulement ce qui l'entoure.
-    [...app.childNodes].forEach(c => { if (c !== ytBox) c.remove(); });
-    const k = nodes.indexOf(ytBox);
-    ytBox.before(...nodes.slice(0, k)); ytBox.after(...nodes.slice(k + 1));
+    [...app.childNodes].forEach(c => { if (c !== keep) c.remove(); });
+    const k = nodes.indexOf(keep);
+    keep.before(...nodes.slice(0, k)); keep.after(...nodes.slice(k + 1));
   } else app.replaceChildren(...nodes);
   window.scrollTo(0, same ? y : 0);
   render.last = location.hash;
@@ -749,4 +913,5 @@ document.querySelectorAll('#tabs a').forEach(a => a.prepend(icon({ rec: I.book, 
 window.addEventListener('hashchange', render);
 render();
 syncNow();
+loadLocalVideos().then(() => { if (Object.keys(localVideos).length) render(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

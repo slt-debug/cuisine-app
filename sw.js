@@ -1,7 +1,7 @@
 'use strict';
 // Cache de l'appli : elle s'ouvre sans réseau (les vidéos YouTube, elles, demandent le réseau).
 // Stratégie "cache d'abord, mise à jour en arrière-plan".
-const CACHE = 'cuisine-v4';
+const CACHE = 'cuisine-v5';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'recipe.js', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
@@ -12,7 +12,8 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    // Seuls les anciens caches de l'appli (cuisine-vN) sont supprimés.
+    .then(keys => Promise.all(keys.filter(k => /^cuisine-v\d+$/.test(k) && k !== CACHE).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 
