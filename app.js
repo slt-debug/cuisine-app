@@ -4,7 +4,7 @@
    dans un dépôt GitHub privé ; copie locale pour fonctionner sans réseau. */
 
 // ---------- Utilitaires ----------
-const APP_VERSION = '2';
+const APP_VERSION = '3';
 const app = document.getElementById('app');
 const timersEl = document.getElementById('timers');
 const toastEl = document.getElementById('toast');
@@ -125,6 +125,17 @@ async function ghPut(name, data, sha) {
   if (r.status === 409 || r.status === 422) { const e = new Error('conflit'); e.conflict = true; throw e; }
   if (!r.ok) throw new Error(`GitHub ${r.status}`);
 }
+// Diagnostic d'accès : compte du jeton et dépôts qu'il voit.
+async function tokenReport() {
+  try {
+    const u = await ghFetch(`${apiBase()}/user`, { headers: ghHeaders() });
+    if (!u.ok) return `Jeton refusé (GitHub ${u.status}).`;
+    const login = (await u.json()).login;
+    const r = await ghFetch(`${apiBase()}/user/repos?per_page=100`, { headers: ghHeaders() });
+    const names = r.ok ? (await r.json()).map(x => x.full_name) : [];
+    return `Ce jeton appartient à ${login} et voit : ${names.length ? names.join(', ') : 'aucun dépôt'}.`;
+  } catch (e) { return `Diagnostic impossible : ${e.message}.`; }
+}
 function scheduleSync() {
   if (!cfgOk()) return;
   clearTimeout(syncTimer);
@@ -136,7 +147,7 @@ async function syncNow() {
   try {
     const rec = await ghGet('recipes.json');
     // Un jeton « fine-grained » sans accès au dépôt reçoit 404, comme un dépôt qui n'existe pas.
-    if (!rec.data) throw new Error(`dépôt ${cfg.owner}/${cfg.repo} introuvable, ou le jeton n'y a pas accès`);
+    if (!rec.data) throw new Error(`dépôt ${cfg.owner}/${cfg.repo} introuvable, ou le jeton n'y a pas accès. ${await tokenReport()}`);
     let changed = false;
     if (rec.data && JSON.stringify(rec.data.recipes || []) !== JSON.stringify(recipes)) {
       recipes = rec.data.recipes || []; store(K.recipes, recipes); changed = true;
